@@ -5,6 +5,11 @@
 #include <stdexcept>
 #include <iostream>
 #include "SearchEngine.h"
+#include "algorithm"
+
+
+static uint32_t docCount = 0;
+
 
 std::vector<Document*> SearchEngine::loadDocuments(const std::string& path)
 {
@@ -31,6 +36,8 @@ std::vector<Document*> SearchEngine::loadDocuments(const std::string& path)
 Document* SearchEngine::parseDocument(tinyxml2::XMLNode* doc)
 {
 	auto document = new Document{};
+	document->id = docCount++;
+
 	auto child = doc->FirstChildElement();
 
 	while (child != nullptr)
@@ -51,4 +58,65 @@ Document* SearchEngine::parseDocument(tinyxml2::XMLNode* doc)
 	}
 
 	return document;
+}
+
+void SearchEngine::buildIndex(std::vector<Document*> docs)
+{
+	auto analyzer = TextAnalyzer{};
+	for (const auto& doc: docs)
+	{
+		auto tokens = analyzer.analyze(doc->text);
+		for (const auto& token: tokens)
+		{
+			if (index_map.count(token))
+			{
+				auto& list = index_map.at(token);
+				if (std::find(list.begin(), list.end(), doc->id) == list.end())
+				{
+					list.push_back(doc->id);
+				}
+			}
+			else
+			{
+				index_map.insert_or_assign(token, std::vector<u_int64_t> {doc->id});
+			}
+		}
+	}
+}
+
+void SearchEngine::printIndex()
+{
+	for (auto const& [key, val] : index_map)
+	{
+
+		std::string valFormat {};
+
+		for (auto id : val)
+		{
+			valFormat += std::to_string(id);
+			valFormat += ",";
+		}
+
+		std::cout << key        // string (key)
+				  << ':'
+				  << valFormat        // string's value
+				  << std::endl;
+	}
+}
+
+std::vector<std::vector<u_int64_t>> SearchEngine::search(std::string text)
+{
+	std::vector<std::vector<u_int64_t>> ret{};
+	auto analyzer = TextAnalyzer{};
+	auto tokens = analyzer.analyze(text);
+	for (auto & token : tokens)
+	{
+		if (index_map.count(token))
+		{
+			auto ans = index_map.at(token);
+			ret.push_back(ans);
+		}
+	}
+
+	return ret;
 }
